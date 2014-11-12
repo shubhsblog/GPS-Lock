@@ -1,0 +1,149 @@
+#include<string.h>
+#include <Servo.h> 
+int ledState = LOW;  
+const int ledPin =  13;
+int Gpsdata;             // for incoming serial data
+unsigned int finish =0;  // indicate end of message
+unsigned int pos_cnt=0;  // position counter
+unsigned int lat_cnt=0;  // latitude data counter
+unsigned int log_cnt=0;  // longitude data counter
+unsigned int flg    =0;  // GPS flag
+unsigned int com_cnt=0;  // comma counter
+char lat[20];            // latitude array
+char lg[20];             // longitude array
+char lat1[6];
+char lg1[6];
+int lat_flag=0;
+int lg_flag=0;
+int i;
+char target_lat[]= "1906";
+char target_lg[]= "07717";
+int unlock=1; 
+int lock=1;
+//---------------for servo//
+Servo myservo;
+int pos = 0;
+void Receive_GPS_Data();
+/*******************************************************************************************
+* Function    : setup()
+* Description : Use it to initialize variables, pin modes, start using
+* libraries, etc.The setup function will only run once,
+* after each power up or reset of the Arduino board.
+*******************************************************************************************/
+void setup()
+{
+Serial.begin(9600);   // opens serial port, sets data rate to 9600 bps
+Serial2.begin(9600); // opens 2nd serial port, sets data rate to 9600 bps
+myservo.attach(9); //attaches servo to pin number 9
+pinMode(ledPin, OUTPUT); 
+}
+/*******************************************************************************************
+* Function    : loop()
+* Description : loops consecutively, allowing your program to change and
+*******************************************************************************************/
+void loop()
+{
+Receive_GPS_Data();              
+delay(300);
+for(i=0;i<6;i++)
+{
+if(lat[i]=='.')
+lat_flag=1;
+else if(lat_flag==0){
+lat1[i]=lat[i]; }
+if(lg[i]=='.')
+lg_flag=1;
+else if(lg_flag==0){
+lg1[i]=lg[i];
+}
+}
+if( !(strcmp(target_lat,lat1)) && !(strcmp(target_lg,lg1))  ) //// code for locking and unlocking
+{
+if(unlock==1)
+{
+myservo.write(1);
+myservo.write(90);
+if (ledState == LOW)
+ledState = HIGH;
+else
+ledState = LOW;
+digitalWrite(ledPin, ledState);
+}
+unlock=0;
+}
+else
+{
+if(lock==1)
+{
+for(pos = 0; pos <= 180; pos += 1) // goes from 0 degrees to 180 degrees 
+{                                  // in steps of 1 degree 
+myservo.write(pos);              // tell servo to go to position in variable 'pos' 
+delay(20);                       // waits 20ms for the servo to reach the position 
+} 
+}
+lock=0;
+}
+Serial.print("Latitude : ");
+Serial.print(lat1);
+Serial.print(" ");
+Serial.print(lat);
+Serial.print(" ");
+Serial.println(target_lat);
+Serial.print("Longitude : ");
+Serial.print(lg1);
+Serial.print(" ");
+Serial.print(lg);
+Serial.print(" ");
+Serial.println(target_lg);
+Serial.println(" ");
+Serial.println(" ");
+lat_flag=0;
+lg_flag=0;
+finish = 0;
+pos_cnt = 0;
+}
+/*******************************************************************************************
+* Function    : Receive_GPS_Data()
+* Description : finding Latitudse and longitude from GPRMC message
+* 
+*******************************************************************************************/
+void Receive_GPS_Data()
+{
+while(finish==0){
+while(Serial2.available()>0){         // Check GPS data
+Gpsdata = Serial2.read();
+flg = 1;
+if( Gpsdata=='$' && pos_cnt == 0)   // finding GPRMC header
+pos_cnt=1;
+if( Gpsdata=='G' && pos_cnt == 1)
+pos_cnt=2;
+if( Gpsdata=='P' && pos_cnt == 2)
+pos_cnt=3;
+if( Gpsdata=='R' && pos_cnt == 3)
+pos_cnt=4;
+if( Gpsdata=='M' && pos_cnt == 4)
+pos_cnt=5;
+if( Gpsdata=='C' && pos_cnt==5 )
+pos_cnt=6;
+if(pos_cnt==6 &&  Gpsdata ==','){   // count commas in message
+com_cnt++;
+flg=0;
+}
+if(com_cnt==3 && flg==1){
+lat[lat_cnt++] =  Gpsdata;         // latitude
+flg=0;
+}
+if(com_cnt==5 && flg==1){
+lg[log_cnt++] =  Gpsdata;         // Longitude
+flg=0;
+}
+if( Gpsdata == '*' && com_cnt >= 5){
+com_cnt = 0;                      // end of GPRMC message
+lat_cnt = 0;
+log_cnt = 0;
+flg     = 0;
+finish  = 1;
+}
+}
+}
+}
